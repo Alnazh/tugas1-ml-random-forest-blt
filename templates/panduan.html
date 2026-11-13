@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_head, case_switch with context %}
+{% block title %}Panduan{% endblock %}
+
+{% block content %}
+{{ page_head('Panduan', 'Rumus dan cara memakai simulator', 'Empat rumus yang dipakai pada setiap node, ditambah petunjuk singkat membaca hasil simulasi.', 'amber') }}
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Rumus</span>
+    <h2>Pembentukan node dengan Gain Ratio</h2>
+  </div>
+  <div class="grid grid-2">
+    <article class="card card-violet">
+      <h3>Entropy</h3>
+      <math display="block"><mrow>
+        <mi>Entropy</mi><mo>(</mo><mi>S</mi><mo>)</mo><mo>=</mo>
+        <munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>
+        <mo>−</mo><msub><mi>p</mi><mi>i</mi></msub><msub><mi>log</mi><mn>2</mn></msub><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>
+      </mrow></math>
+      <p>Ukuran ketidakmurnian data. Bernilai 0 bila semua data satu kelas.</p>
+    </article>
+    <article class="card card-pink">
+      <h3>Gain</h3>
+      <math display="block"><mrow>
+        <mi>Gain</mi><mo>(</mo><mi>S</mi><mo>,</mo><mi>A</mi><mo>)</mo><mo>=</mo>
+        <mi>Entropy</mi><mo>(</mo><mi>S</mi><mo>)</mo><mo>−</mo>
+        <munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>
+        <mfrac><mrow><mo>|</mo><msub><mi>S</mi><mi>i</mi></msub><mo>|</mo></mrow><mrow><mo>|</mo><mi>S</mi><mo>|</mo></mrow></mfrac>
+        <mo>·</mo><mi>Entropy</mi><mo>(</mo><msub><mi>S</mi><mi>i</mi></msub><mo>)</mo>
+      </mrow></math>
+      <p>Penurunan entropy setelah data dipecah berdasarkan atribut A.</p>
+    </article>
+    <article class="card card-amber">
+      <h3>Split Info</h3>
+      <math display="block"><mrow>
+        <mi>SplitInfo</mi><mo>(</mo><mi>S</mi><mo>,</mo><mi>A</mi><mo>)</mo><mo>=</mo>
+        <munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>c</mi></munderover>
+        <mo>−</mo><mfrac><mrow><mo>|</mo><msub><mi>S</mi><mi>i</mi></msub><mo>|</mo></mrow><mrow><mo>|</mo><mi>S</mi><mo>|</mo></mrow></mfrac>
+        <msub><mi>log</mi><mn>2</mn></msub><mo>(</mo>
+        <mfrac><mrow><mo>|</mo><msub><mi>S</mi><mi>i</mi></msub><mo>|</mo></mrow><mrow><mo>|</mo><mi>S</mi><mo>|</mo></mrow></mfrac><mo>)</mo>
+      </mrow></math>
+      <p>Mengukur seberapa merata atribut membagi data. Mencegah atribut dengan banyak nilai terlalu diuntungkan.</p>
+    </article>
+    <article class="card card-mint">
+      <h3>Gain Ratio</h3>
+      <math display="block"><mrow>
+        <mi>GainRatio</mi><mo>(</mo><mi>S</mi><mo>,</mo><mi>A</mi><mo>)</mo><mo>=</mo>
+        <mfrac><mrow><mi>Gain</mi><mo>(</mo><mi>S</mi><mo>,</mo><mi>A</mi><mo>)</mo></mrow>
+        <mrow><mi>SplitInfo</mi><mo>(</mo><mi>S</mi><mo>,</mo><mi>A</mi><mo>)</mo></mrow></mfrac>
+      </mrow></math>
+      <p>Dari dua kolom acak, kolom dengan Gain Ratio tertinggi menjadi pemecah node.</p>
+    </article>
+  </div>
+  <p class="note">Suku 0 · log₂ 0 dihitung 0 dan tetap ditulis pada rumus. Bila Gain Ratio seri, kolom yang lebih dulu dalam urutan atribut dipilih.</p>
+</section>
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Cara pakai</span>
+    <h2>Membaca halaman simulasi</h2>
+  </div>
+  <ol class="flow flow-wide">
+    <li class="flow-item flow-violet">
+      <span class="flow-no">1</span>
+      <h3>Pilih kasus dan seed</h3>
+      <p>Pilih studi kasus bawaan atau buat sendiri di halaman Kasus Saya. Seed yang sama selalu menghasilkan hutan yang sama.</p>
+    </li>
+    <li class="flow-item flow-pink">
+      <span class="flow-no">2</span>
+      <h3>Telusuri langkah 1 sampai 3</h3>
+      <p>Lihat sampel bootstrap, kombinasi kolom, lalu tabel perhitungan dan gambar pohon pada setiap node.</p>
+    </li>
+    <li class="flow-item flow-amber">
+      <span class="flow-no">3</span>
+      <h3>Klasifikasikan data baru</h3>
+      <p>Pilih nilai tiap atribut. Jalur tiap pohon ditandai oranye dan hasil akhir ditentukan oleh suara terbanyak.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="container section">
+  <div class="cta cta-soft">
+    <div>
+      <h2>Catatan batasan</h2>
+      <p>Data hanya {{ data|length }} baris, sehingga hasilnya untuk belajar dan bukan untuk keputusan sebenarnya. {{ case.note }}</p>
+    </div>
+    <a class="btn btn-dark" href="{{ link('simulasi') }}">Coba simulasi</a>
+  </div>
+</section>
+{% endblock %}
