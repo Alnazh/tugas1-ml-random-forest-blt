@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_head, tokens with context %}
+{% block title %}Kasus Saya{% endblock %}
+
+{% block content %}
+{{ page_head('Kasus saya', 'Buat studi kasus sendiri', 'Tempel atau unggah data CSV, periksa pratinjaunya, lalu simulasikan Random Forest pada data milikmu.', 'violet') }}
+
+<section class="container section">
+  <div class="grid grid-2 grid-wide-left">
+    <form class="panel" method="post" action="{{ url_for('kasus_baru') }}" enctype="multipart/form-data">
+      <h2>Data studi kasus</h2>
+
+      <div class="field">
+        <label for="title">Nama studi kasus</label>
+        <input id="title" class="input" type="text" name="title" maxlength="{{ limits.MAX_TITLE }}" value="{{ form.title }}" placeholder="Contoh: {{ example_title }}">
+      </div>
+
+      <div class="field">
+        <label for="csv">Data CSV (baris pertama = nama kolom)</label>
+        <textarea id="csv" class="input input-code" name="csv" rows="11" spellcheck="false" placeholder="Umur,Penghasilan,...,Beli">{{ form.csv }}</textarea>
+      </div>
+
+      <div class="field-row field-row-wrap">
+        <div class="field">
+          <label for="file">atau unggah berkas .csv</label>
+          <input id="file" class="input" type="file" name="file" accept=".csv,.tsv,.txt">
+        </div>
+        <button class="btn btn-small btn-ghost" type="button" data-example data-title="{{ example_title }}" data-csv="{{ example_csv }}">Isi dengan contoh</button>
+      </div>
+
+      {% if headers %}
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="target">Kolom target (yang diprediksi)</label>
+          <select id="target" name="target">
+            {% for name in headers %}<option value="{{ name }}" {{ 'selected' if name == form.target }}>{{ name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="positive">Kelas yang diberi warna hijau</label>
+          <select id="positive" name="positive">
+            {% for name in class_options %}<option value="{{ name }}" {{ 'selected' if name == form.positive }}>{{ name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="muted small">Setelah mengganti kolom target, klik Pratinjau lagi agar pilihan kelas diperbarui.</p>
+      {% endif %}
+
+      {% if errors %}
+      <div class="alert" role="alert">
+        <strong>Data belum bisa dipakai:</strong>
+        <ul>{% for message in errors %}<li>{{ message }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      <div class="form-actions">
+        <button class="btn btn-ghost" type="submit" name="action" value="preview">Pratinjau</button>
+        <button class="btn btn-primary" type="submit" name="action" value="save" {{ 'disabled' if not preview }}>Simpan dan simulasikan</button>
+      </div>
+    </form>
+
+    <aside class="panel panel-help">
+      <h2>Format data</h2>
+      <ul class="check-list">
+        <li>Baris pertama berisi nama kolom, pemisah boleh koma, titik koma, atau tab.</li>
+        <li>{{ limits.ROW_LIMITS[0] }} sampai {{ limits.ROW_LIMITS[1] }} baris data, tanpa sel kosong.</li>
+        <li>{{ limits.ATTRIBUTE_LIMITS[0] }} sampai {{ limits.ATTRIBUTE_LIMITS[1] }} kolom atribut bertipe kategori, masing-masing maksimal {{ limits.MAX_VALUES }} nilai berbeda.</li>
+        <li>Kolom target (bawaan: kolom terakhir) berisi tepat 2 kelas.</li>
+        <li>Data tersimpan di browser ini saja, maksimal {{ limits.MAX_CASES }} studi kasus.</li>
+      </ul>
+      <p class="muted small">Angka numerik sebaiknya dikelompokkan dulu menjadi kategori, misalnya Rendah, Sedang, Tinggi.</p>
+    </aside>
+  </div>
+</section>
+
+{% if preview %}
+<section class="container section-tight">
+  <article class="panel panel-ok">
+    <h2>Pratinjau: {{ preview.title }}</h2>
+    <p>{{ preview.summary }}</p>
+    <p class="token-row">{{ tokens(preview.counts(preview.data)) }}
+      {% for name in preview.classes %}<span class="badge badge-{{ 'pos' if loop.index0 == 1 else 'neg' }}">{{ name }} {{ preview.counts(preview.data)[loop.index0] }}</span> {% endfor %}</p>
+    <div class="case-chips">
+      {% for attr in preview.attributes.values() %}
+      <span class="chip chip-{{ attr.color }}"><i class="shape shape-{{ attr.shape }}"></i>{{ attr.label }}: {{ attr['values']|join(', ') }}</span>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endif %}
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Tersimpan</span>
+    <h2>Studi kasus buatanmu</h2>
+  </div>
+  {% if saved %}
+  <div class="grid grid-3">
+    {% for c in saved.values() %}
+    <article class="card card-case card-{{ ['violet', 'pink', 'mint'][loop.index0 % 3] }}">
+      <h3>{{ c.title }}</h3>
+      <p>{{ c.summary }}</p>
+      <p class="case-meta">{{ tokens(c.counts(c.data)) }}<span class="muted">{{ c.data|length }} data</span></p>
+      <div class="card-actions">
+        <a class="btn btn-small btn-primary" href="{{ url_for('simulasi', kasus=c.key) }}">Simulasikan</a>
+        <a class="btn btn-small btn-ghost" href="{{ url_for('dataset', kasus=c.key) }}">Data</a>
+        <form method="post" action="{{ url_for('hapus_kasus', key=c.key) }}">
+          <button class="btn btn-small btn-ghost" type="submit">Hapus</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="note">Belum ada studi kasus buatanmu. Coba klik "Isi dengan contoh" lalu Pratinjau.</p>
+  {% endif %}
+</section>
+{% endblock %}

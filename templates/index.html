@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "macros.html" import tokens with context %}
+
+{% block content %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-text">
+      <span class="sticker sticker-amber">Simulasi perhitungan manual</span>
+      <h1>Hutan <span class="hl hl-violet">keputusan</span> yang bisa <span class="hl hl-mint">dihitung</span> langkah demi langkah</h1>
+      <p class="lead">Ikuti <strong>Random Forest</strong> dari bootstrap, kolom acak, Gain Ratio, sampai voting mayoritas. Pilih studi kasus bawaan atau buat sendiri dari data CSV, semua angkanya bisa dicek.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="{{ link('simulasi') }}">Mulai simulasi</a>
+        <a class="btn btn-ghost" href="{{ link('dataset') }}">Lihat dataset</a>
+      </div>
+    </div>
+
+    <div class="hero-art-wrap">
+      <svg class="hero-art" viewBox="0 0 480 420" role="img" aria-label="Ilustrasi hutan dari bentuk geometris">
+        <circle class="a a-amber" cx="372" cy="92" r="54"/>
+        <rect class="a a-pink" x="46" y="52" width="58" height="58" rx="10" transform="rotate(14 75 81)"/>
+        <rect class="a a-ink" x="24" y="346" width="432" height="24" rx="12"/>
+        <g>
+          <rect class="a a-wood" x="104" y="262" width="22" height="86"/>
+          <polygon class="a a-violet" points="115,112 190,232 40,232"/>
+          <polygon class="a a-violet-dark" points="115,172 205,282 25,282"/>
+        </g>
+        <g>
+          <rect class="a a-wood" x="239" y="248" width="22" height="100"/>
+          <circle class="a a-mint" cx="250" cy="186" r="76"/>
+          <circle class="a a-mint-dark" cx="250" cy="150" r="40"/>
+        </g>
+        <g>
+          <rect class="a a-wood" x="370" y="262" width="22" height="86"/>
+          <rect class="a a-pink" x="326" y="150" width="110" height="110" rx="18" transform="rotate(45 381 205)"/>
+          <circle class="a a-amber" cx="381" cy="205" r="22"/>
+        </g>
+        <g class="a-dots">
+          <circle cx="176" cy="372" r="6"/><circle cx="312" cy="372" r="6"/><circle cx="440" cy="40" r="6"/>
+        </g>
+      </svg>
+      <span class="float-card float-yes">{{ classes[1] }}</span>
+      <span class="float-card float-no">{{ classes[0] }}</span>
+    </div>
+  </div>
+  <i class="deco deco-circle" aria-hidden="true"></i>
+  <i class="deco deco-triangle" aria-hidden="true"></i>
+</section>
+
+<section class="container stats">
+  {% for number, text, color in [(cases|length, 'studi kasus tersedia', 'violet'), (4, 'langkah simulasi', 'pink'), ('3-10', 'pohon keputusan', 'mint'), (4, 'rumus yang dihitung', 'amber')] %}
+  <div class="stat stat-{{ color }}">
+    <strong>{{ number }}</strong>
+    <span>{{ text }}</span>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Studi kasus</span>
+    <h2>Pilih kasus yang ingin disimulasikan</h2>
+  </div>
+  <div class="grid grid-3">
+    {% for c in cases %}
+    <article class="card card-case card-{{ ['violet', 'pink', 'mint'][loop.index0 % 3] }}">
+      <h3>{{ c.title }}{% if c.custom %} <span class="badge badge-node">Milikmu</span>{% endif %}</h3>
+      <p>{{ c.summary }}</p>
+      <p class="case-chips">{% for a in c.attributes.values() %}<span class="chip chip-{{ a.color }}"><i class="shape shape-{{ a.shape }}"></i>{{ a.label }}</span>{% endfor %}</p>
+      <p class="case-meta">{{ tokens(c.counts(c.data)) }}<span class="muted">{{ c.data|length }} data</span></p>
+      <div class="card-actions">
+        <a class="btn btn-small btn-primary" href="{{ url_for('simulasi', kasus=c.key) }}">Simulasikan</a>
+        <a class="btn btn-small btn-ghost" href="{{ url_for('dataset', kasus=c.key) }}">Data</a>
+      </div>
+    </article>
+    {% endfor %}
+    <a class="card card-add" href="{{ url_for('kasus_baru') }}">
+      <span class="add-sign" aria-hidden="true">+</span>
+      <h3>Buat studi kasus sendiri</h3>
+      <p>Tempel atau unggah data CSV milikmu, lalu simulasikan.</p>
+    </a>
+  </div>
+</section>
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Konsep</span>
+    <h2>Tiga ide di balik Random Forest</h2>
+  </div>
+  <div class="grid grid-3">
+    <article class="card card-violet">
+      <i class="icon icon-square" aria-hidden="true"></i>
+      <h3>Bootstrap sampling</h3>
+      <p>Data latih diambil acak <em>dengan pengembalian</em>. Sebagian data terpilih berkali-kali, sebagian tidak terpilih sama sekali.</p>
+    </article>
+    <article class="card card-pink">
+      <i class="icon icon-circle" aria-hidden="true"></i>
+      <h3>Kolom acak (m = 2)</h3>
+      <p>Setiap node hanya boleh memilih dari dua kolom acak. Itu membuat pohon-pohonnya berbeda satu sama lain.</p>
+    </article>
+    <article class="card card-mint">
+      <i class="icon icon-triangle" aria-hidden="true"></i>
+      <h3>Mayoritas vote</h3>
+      <p>Data baru ditelusuri pada semua pohon. Kelas yang paling banyak dipilih menjadi hasil akhir hutan.</p>
+    </article>
+  </div>
+</section>
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Alur simulasi</span>
+    <h2>Empat langkah pada setiap studi kasus</h2>
+  </div>
+  <ol class="flow">
+    {% for title, text, color in [
+      ('Bootstrap', 'Ambil data secara acak dengan pengembalian sebanyak jumlah data asli.', 'violet'),
+      ('Kolom acak', 'Kombinasi dua kolom menjadi akar tiap pohon.', 'pink'),
+      ('Bangun pohon', 'Hitung Entropy, Gain, Split Info, dan Gain Ratio di tiap node.', 'amber'),
+      ('Vote', 'Telusuri data baru pada semua pohon, lalu hitung suara.', 'mint')] %}
+    <li class="flow-item flow-{{ color }}">
+      <span class="flow-no">{{ loop.index }}</span>
+      <h3>{{ title }}</h3>
+      <p>{{ text }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="container section">
+  <div class="cta">
+    <div>
+      <h2>Siap melihat hutannya tumbuh?</h2>
+      <p>Ganti seed untuk melihat hutan yang berbeda setiap kali, atau masukkan data milikmu sendiri.</p>
+    </div>
+    <a class="btn btn-dark" href="{{ link('simulasi') }}">Buka simulasi</a>
+  </div>
+</section>
+{% endblock %}

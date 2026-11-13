@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_head, case_switcher, rows_table, attr_chip, tokens, token_run, label_badge,
+   count_text, hidden_settings, hidden_query, calc_table, formula_steps, tree_svg, explain_box with context %}
+{% block title %}Simulasi{% endblock %}
+
+{% block content %}
+{{ page_head('Simulasi', case.title, 'Atur seed dan jumlah pohon, telusuri perhitungan di setiap node, lalu klasifikasikan ' ~ case.subject ~ ' baru.', 'mint') }}
+
+<section class="container section-tight">
+  {{ case_switcher('simulasi') }}
+
+  <form id="sim-form" class="panel control-panel" method="get" action="{{ url_for('simulasi') }}#langkah-1">
+    {{ hidden_query(query) }}
+    <div class="control-fields">
+      <div class="field">
+        <label for="seed">Seed</label>
+        <div class="field-row">
+          <input id="seed" type="number" name="seed" min="1" max="99999" value="{{ settings.seed }}">
+          <button class="btn btn-small btn-ghost" type="button" data-dice>Acak seed</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="n_trees">Jumlah pohon</label>
+        <input id="n_trees" type="number" name="n_trees" min="{{ tree_range[0] }}" max="{{ tree_range[1] }}" value="{{ settings.n_trees }}">
+      </div>
+      <label class="check field">
+        <input type="checkbox" name="per_tree" value="1" {{ 'checked' if settings.per_tree }}>
+        <span>Bootstrap berbeda untuk tiap pohon</span>
+      </label>
+      <button class="btn btn-primary" type="submit">Jalankan simulasi</button>
+    </div>
+  </form>
+</section>
+
+<section id="simulator" class="container tabs" data-tabs data-hash>
+  <div class="stepper" role="tablist" aria-label="Langkah simulasi">
+    {% for title in ['Bootstrap', 'Kolom acak', 'Pohon', 'Vote'] %}
+    <button class="step step-{{ loop.index }}" role="tab" id="tab-langkah-{{ loop.index }}" aria-controls="langkah-{{ loop.index }}" type="button">
+      <span class="step-no">{{ loop.index }}</span><span class="step-title">{{ title }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  {# ───────── Langkah 1: bootstrap ───────── #}
+  <section id="langkah-1" class="step-panel" role="tabpanel" aria-labelledby="tab-langkah-1">
+    <header class="step-head">
+      <h2>Langkah 1. Bootstrap sampling</h2>
+      <p>Ambil acak dengan pengembalian sebanyak n = {{ data|length }} dari data asli. Hasilnya dipakai untuk membangun pohon.</p>
+    </header>
+
+    <details class="fold" open>
+      <summary>Data asli</summary>
+      <div class="fold-body">{{ rows_table(data, attributes.keys()|list, origin=False) }}</div>
+    </details>
+
+    {% for group in forest.sample_groups() %}
+    {% set times = group.times %}
+    <article class="panel">
+      <h3>Sampel bootstrap untuk {{ 'pohon ' ~ group.trees[0] if group.trees|length == 1 else 'pohon 1 sampai ' ~ group.trees[-1] }}</h3>
+      <p class="muted">Setiap lingkaran adalah satu data asli. Angka kecil menunjukkan berapa kali data terpilih, yang pudar tidak terpilih.</p>
+      <div class="num-grid">
+        {% for row in data %}
+        {% set count = times.get(row.no, 0) %}
+        <span class="num-chip num-{{ row.label|slug }}{{ ' is-missing' if count == 0 }}" title="Data {{ row.no }}: terpilih {{ count }} kali">{{ row.no }}{% if count > 1 %}<sup>×{{ count }}</sup>{% endif %}</span>
+        {% endfor %}
+      </div>
+      <p>Sampel berisi {% for name in classes %}<strong>{{ group.counts[loop.index0] }}</strong> data {{ name }}{{ ' dan ' if not loop.last }}{% endfor %}.
+        Data nomor <strong>{{ group.repeated|join(', ') or 'tidak ada' }}</strong> terpilih lebih dari satu kali, sedangkan data nomor <strong>{{ group.missing|join(', ') or 'tidak ada' }}</strong> tidak terpilih sama sekali.</p>
+      <details class="fold">
+        <summary>Tabel sampel hasil bootstrap</summary>
+        <div class="fold-body">{{ rows_table(group.sample, attributes.keys()|list) }}</div>
+      </details>
+    </article>
+    {% endfor %}
+
+    <div class="step-nav"><span></span><button class="btn btn-primary" type="button" data-tab-go="next">Lanjut: Kolom acak</button></div>
+  </section>
+
+  {# ───────── Langkah 2: kolom acak ───────── #}
+  <section id="langkah-2" class="step-panel" role="tabpanel" aria-labelledby="tab-langkah-2">
+    <header class="step-head">
+      <h2>Langkah 2. Kombinasi kolom acak (m = 2)</h2>
+      <p>Setiap pohon mendapat sepasang kolom pada node awal (root). Kolom dengan Gain Ratio tertinggi menjadi pemecah root.</p>
+    </header>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Pohon</th><th>Kombinasi kolom</th><th>Gain Ratio tiap kolom</th><th>Pemecah root</th></tr></thead>
+        <tbody>
+          {% for tree in forest.trees %}
+          <tr>
+            <td class="num">{{ tree.number }}</td>
+            <td>{% for key in tree.root_columns %}{{ attr_chip(key) }} {% endfor %}</td>
+            <td>{% for ev in tree.root.evaluations %}<span class="ratio">{{ attributes[ev.attribute].label }} <b>{{ ev.gain_ratio|num }}</b></span>{% endfor %}</td>
+            <td>{{ attr_chip(tree.root.split) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Pada node berikutnya, dua kolom diacak kembali dari kolom yang belum dipakai pada jalur tersebut. Pilihan kolomnya tercantum di setiap kartu node pada langkah 3.</p>
+    <div class="step-nav">
+      <button class="btn btn-ghost" type="button" data-tab-go="prev">Kembali</button>
+      <button class="btn btn-primary" type="button" data-tab-go="next">Lanjut: Pohon</button>
+    </div>
+  </section>
+
+  {# ───────── Langkah 3: pohon ───────── #}
+  <section id="langkah-3" class="step-panel" role="tabpanel" aria-labelledby="tab-langkah-3">
+    <header class="step-head">
+      <h2>Langkah 3. Pembentukan pohon keputusan</h2>
+      <p>Pada tiap node dihitung Entropy, Gain, Split Info, dan Gain Ratio. Proses berulang sampai semua data pada cabang satu kelas.</p>
+    </header>
+
+    <div class="tabs tabs-trees" data-tabs>
+      <div class="tree-tabs" role="tablist" aria-label="Pilih pohon">
+        {% for tree in forest.trees %}
+        <button class="tree-tab" role="tab" id="tab-pohon-{{ tree.number }}" aria-controls="pohon-{{ tree.number }}" type="button">Pohon {{ tree.number }}</button>
+        {% endfor %}
+      </div>
+
+      {% for tree in forest.trees %}
+      {% set lay = layouts[tree.number] %}
+      <div id="pohon-{{ tree.number }}" role="tabpanel" aria-labelledby="tab-pohon-{{ tree.number }}">
+        <article class="panel tree-summary">
+          <div>
+            <h3>Pohon keputusan {{ tree.number }}</h3>
+            <p>Kolom awal: {% for key in tree.root_columns %}{{ attr_chip(key) }} {% endfor %}</p>
+            <p class="muted">{{ tree.nodes()|length }} node · {{ tree.leaves|length }} daun · kedalaman {{ tree.depth }}</p>
+            <p class="muted small">Penomoran node: 1 = akar, 1.2 = cabang ke-2 dari Node 1, 1.2.1 = cabang ke-1 dari Node 1.2, dan seterusnya.</p>
+          </div>
+          <ul class="legend legend-inline">
+            <li><i class="key key-split"></i>Node pemecah</li>
+            <li><i class="key key-pos"></i>Daun {{ classes[1] }}</li>
+            <li><i class="key key-neg"></i>Daun {{ classes[0] }}</li>
+          </ul>
+        </article>
+        {{ tree_svg(tree, lay) }}
+        {{ explain_box(describe_tree(case, tree), 'Ringkasan pohon ' ~ tree.number) }}
+
+        {% for node in tree.split_nodes %}
+        <article class="node-card">
+          <header class="node-card-head">
+            <span class="badge badge-node">Node {{ node.id }}</span>
+            <h4>{% if node.parent_id %}{{ attributes[tree.by_id[node.parent_id].split].label }} = {{ node.branch_value }}{% else %}Node awal (root){% endif %}</h4>
+            <span class="muted">{{ node.size }} data · {{ count_text(node.counts) }}</span>
+          </header>
+
+          <p>Kolom acak yang dipilih: {% for key in node.candidates %}{{ attr_chip(key) }} {% endfor %}</p>
+
+          <details class="fold" {{ 'open' if node.size <= 8 }}>
+            <summary>Data pada node ini ({{ node.size }} baris)</summary>
+            <div class="fold-body">{{ rows_table(node.rows, node.candidates) }}</div>
+          </details>
+
+          {{ calc_table(node) }}
+          {{ formula_steps(node) }}
+
+          <div class="conclusion">
+            <p><strong>Kesimpulan.</strong> Gain Ratio tertinggi dimiliki {{ attr_chip(node.split) }} ({{ node.best.gain_ratio|num }}), sehingga node ini dipecah berdasarkan {{ attributes[node.split].label }}.</p>
+            <ul class="outcome">
+              {% for child in node.children %}
+              <li>
+                <span class="pill">{{ attributes[node.split].label }} = {{ child.branch_value }}</span>
+                {{ child.size }} data
+                {% if child.is_leaf %}
+                  {% if child.is_pure %}semuanya {{ label_badge(child.label) }}, menjadi daun.
+                  {% else %}tidak ada kolom tersisa, diambil mayoritas: {{ label_badge(child.label) }}.{% endif %}
+                {% else %}({{ count_text(child.counts) }}) belum homogen, dihitung pada <b>Node {{ child.id }}</b>.{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <p class="figure-caption">Pohon {{ tree.number }} setelah Node {{ node.id }} dipecah</p>
+          {{ tree_svg(tree, lay, step=loop.index) }}
+          {{ explain_box(describe_step(case, tree, node), 'Penjelasan gambar') }}
+        </article>
+        {% endfor %}
+        <p class="note">Semua data pada pohon {{ tree.number }} sudah masuk ke kelas masing-masing, jadi perhitungan pohon ini selesai.</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" type="button" data-tab-go="prev">Kembali</button>
+      <button class="btn btn-primary" type="button" data-tab-go="next">Lanjut: Vote</button>
+    </div>
+  </section>
+
+  {# ───────── Langkah 4: vote ───────── #}
+  <section id="langkah-4" class="step-panel" role="tabpanel" aria-labelledby="tab-langkah-4">
+    <header class="step-head">
+      <h2>Langkah 4. Klasifikasi data baru dengan mayoritas vote</h2>
+      <p>Pilih kondisi {{ case.subject }}, lalu lihat jalur penelusuran pada pohon-pohon di bawah.</p>
+    </header>
+
+    <form class="panel query-form" method="get" action="{{ url_for('simulasi') }}#langkah-4">
+      {{ hidden_settings(settings) }}
+      <div class="query-fields">
+        {% for key, attr in attributes.items() %}
+        <div class="field">
+          <label for="q-{{ key }}">{{ attr_chip(key) }}</label>
+          <select id="q-{{ key }}" name="{{ key }}">
+            {% for value in attr['values'] %}<option value="{{ value }}" {{ 'selected' if query[key] == value }}>{{ value }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="query-actions">
+        {% if case.presets %}<span class="muted">Contoh cepat:</span>{% endif %}
+        {% for name, values in case.presets %}
+        <button class="btn btn-small btn-ghost" type="button" data-preset='{{ values|tojson }}'>{{ name }}</button>
+        {% endfor %}
+        <button class="btn btn-primary" type="submit">Klasifikasikan</button>
+      </div>
+    </form>
+
+    <article class="verdict verdict-{{ vote.winner|slug }}">
+      <div class="verdict-main">
+        <span class="verdict-kicker">Hasil mayoritas vote</span>
+        <h3>{{ case.target }}: {{ vote.winner }}</h3>
+        <p>{{ vote.tally[classes.index(vote.winner)] }} dari {{ forest.trees|length }} pohon memilih <strong>{{ vote.winner }}</strong>.
+          {% if vote.is_tie %}Suara seri, sehingga dipilih kelas yang lebih dulu ({{ vote.winner }}).{% endif %}</p>
+      </div>
+      <div class="verdict-votes">
+        {% for name in classes %}
+        <div class="vote-line"><span>{{ name }}</span>{{ token_run(name, vote.tally[loop.index0]) }}<b>{{ vote.tally[loop.index0] }}</b></div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Pohon</th><th>Jalur penelusuran</th><th>Hasil</th></tr></thead>
+        <tbody>
+          {% for p in vote.predictions %}
+          <tr>
+            <td class="num">{{ p.tree_number }}</td>
+            <td>{% for key, value in p.decisions %}{{ attributes[key].label }} = {{ value }}{{ ', ' if not loop.last }}{% endfor %}{% if p.unseen %} <small class="muted">(nilai belum pernah muncul, dipakai mayoritas node)</small>{% endif %}</td>
+            <td>{{ label_badge(p.label) }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="row-total"><td colspan="2">Jumlah suara</td><td>{{ count_text(vote.tally) }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subhead">Jalur pada pohon <small>(garis oranye, pilih pohon untuk melihatnya)</small></h3>
+    <div class="tabs tabs-trees" data-tabs>
+      <div class="tree-tabs" role="tablist" aria-label="Pilih pohon untuk melihat jalur">
+        {% for tree in forest.trees %}
+        <button class="tree-tab" role="tab" id="tab-jalur-{{ tree.number }}" aria-controls="jalur-{{ tree.number }}" type="button">Pohon {{ tree.number }} {{ token_run(vote.predictions[loop.index0].label, 1) }}</button>
+        {% endfor %}
+      </div>
+      {% for tree in forest.trees %}
+      {% set p = vote.predictions[loop.index0] %}
+      <div id="jalur-{{ tree.number }}" role="tabpanel" aria-labelledby="tab-jalur-{{ tree.number }}">
+        <article class="panel path-card">
+          <header class="path-head"><strong>Pohon {{ tree.number }}</strong>{{ label_badge(p.label) }}</header>
+          {{ tree_svg(tree, layouts[tree.number], path=p.path) }}
+          {{ explain_box(describe_path(case, tree, p), 'Penjelasan jalur') }}
+        </article>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" type="button" data-tab-go="prev">Kembali</button>
+      <a class="btn btn-dark" href="{{ link('panduan') }}">Baca panduan</a>
+    </div>
+  </section>
+</section>
+{% endblock %}

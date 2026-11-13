@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "macros.html" import page_head, case_switcher, rows_table, attr_chip, tokens, label_badge with context %}
+{% block title %}Dataset{% endblock %}
+
+{% block content %}
+{{ page_head('Dataset', case.title, case.summary ~ ' ' ~ data|length ~ ' baris data dengan ' ~ attributes|length ~ ' atribut dan satu target.', 'pink') }}
+
+<section class="container section-tight">
+  {{ case_switcher('dataset') }}
+</section>
+
+<section class="container section">
+  <div class="grid grid-2">
+    <article class="panel">
+      <h2>Sebaran kelas</h2>
+      <p class="muted">Satu kotak mewakili satu baris data.</p>
+      <p class="token-row">{{ tokens(totals) }}</p>
+      <ul class="legend">
+        {% for name in classes %}
+        <li>{{ label_badge(name) }} <strong>{{ totals[loop.index0] }}</strong> baris ({{ (totals[loop.index0] / data|length * 100)|round(1)|string|replace('.', ',') }}%)</li>
+        {% endfor %}
+      </ul>
+    </article>
+    <article class="panel">
+      <h2>Tentang data</h2>
+      <p>{{ case.note }} Semua atribut bertipe kategori, sehingga pemisahan node dilakukan per nilai atribut.</p>
+      <p class="muted">Pada setiap node, jumlah cabang sama dengan jumlah nilai atribut yang benar-benar muncul pada data node tersebut.</p>
+    </article>
+  </div>
+</section>
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Tabel data latih</span>
+    <h2>Seluruh data</h2>
+  </div>
+  {{ rows_table(data, attributes.keys()|list, origin=False) }}
+</section>
+
+<section class="container section">
+  <div class="section-head">
+    <span class="kicker">Atribut</span>
+    <h2>Arti dan sebaran tiap atribut</h2>
+  </div>
+  <div class="grid grid-2">
+    {% for key, attr in attributes.items() %}
+    <article class="card card-attr card-{{ attr.color }}">
+      <h3>{{ attr_chip(key) }}</h3>
+      <p>{{ attr.hint }}</p>
+      <div class="table-wrap">
+        <table class="table table-mini">
+          <thead><tr><th>Nilai</th>{% for name in classes %}<th>{{ name }}</th>{% endfor %}<th>Jumlah</th></tr></thead>
+          <tbody>
+            {% for value, counts in value_stats[key] %}
+            <tr><td>{{ value }}</td>{% for count in counts %}<td>{{ count }}</td>{% endfor %}<td>{{ counts|sum }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

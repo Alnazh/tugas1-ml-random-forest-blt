@@ -1,0 +1,202 @@
+{# Komponen bersama. Impor dengan: {% from "macros.html" import ... with context %} #}
+
+{% macro attr_chip(key) -%}
+{%- set attr = attributes[key] -%}
+<span class="chip chip-{{ attr.color }}"><i class="shape shape-{{ attr.shape }}"></i>{{ attr.label }}</span>
+{%- endmacro %}
+
+{% macro label_badge(label) -%}
+<span class="badge badge-{{ label|slug }}">{{ label }}</span>
+{%- endmacro %}
+
+{% macro count_text(counts) -%}
+{%- for name in classes %}{{ name }} {{ counts[loop.index0] }}{{ ', ' if not loop.last }}{% endfor -%}
+{%- endmacro %}
+
+{# Satu kotak per data; kelas indeks 1 = positif (hijau), indeks 0 = negatif (merah muda). #}
+{% macro tokens(counts) -%}
+<span class="tokens">
+  {%- for count in counts %}{% set kind = 'pos' if loop.index0 == 1 else 'neg' %}{% for _ in range(count) %}<i class="token token-{{ kind }}"></i>{% endfor %}{% endfor -%}
+</span>
+{%- endmacro %}
+
+{% macro token_run(name, count) -%}
+<span class="tokens">{% for _ in range(count) %}<i class="token token-{{ name|slug }}"></i>{% endfor %}</span>
+{%- endmacro %}
+
+{% macro hidden_settings(settings) -%}
+<input type="hidden" name="kasus" value="{{ case.key }}">
+<input type="hidden" name="seed" value="{{ settings.seed }}">
+<input type="hidden" name="n_trees" value="{{ settings.n_trees }}">
+{% if settings.per_tree %}<input type="hidden" name="per_tree" value="1">{% endif %}
+{%- endmacro %}
+
+{% macro hidden_query(query) -%}
+<input type="hidden" name="kasus" value="{{ case.key }}">
+{% for key, value in query.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+{%- endmacro %}
+
+{% macro page_head(kicker, title, lead, color='violet') %}
+<section class="page-head page-head-{{ color }}">
+  <div class="container">
+    <span class="kicker">{{ kicker }}</span>
+    <h1>{{ title }}</h1>
+    <p class="lead">{{ lead }}</p>
+  </div>
+  <i class="deco deco-circle" aria-hidden="true"></i>
+  <i class="deco deco-triangle" aria-hidden="true"></i>
+  <i class="deco deco-square" aria-hidden="true"></i>
+</section>
+{% endmacro %}
+
+{# Pilihan studi kasus; tautan mempertahankan halaman yang sedang dibuka. #}
+{% macro case_switcher(endpoint) %}
+<nav class="case-switch" aria-label="Pilih studi kasus">
+  <span class="case-switch-label">Studi kasus</span>
+  {% for c in cases %}
+  <a class="case-pill{{ ' is-active' if c.key == case.key }}" href="{{ url_for(endpoint, kasus=c.key) }}"{% if c.key == case.key %} aria-current="true"{% endif %}>{{ c.title }}</a>
+  {% endfor %}
+  <a class="case-pill case-pill-add" href="{{ url_for('kasus_baru') }}">+ Kasus sendiri</a>
+</nav>
+{% endmacro %}
+
+{# Kotak penjelasan yang kalimatnya disusun otomatis dari hasil simulasi. #}
+{% macro explain_box(lines, title='Penjelasan') %}
+<aside class="explain">
+  <strong>{{ title }}</strong>
+  <ul>{% for line in lines %}<li>{{ line }}</li>{% endfor %}</ul>
+</aside>
+{% endmacro %}
+
+{# Tabel data. `columns` berisi kunci kolom yang ditampilkan. #}
+{% macro rows_table(rows, columns, origin=True) %}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>{{ 'No' if not origin else 'No (asal)' }}</th>
+        {% for key in columns %}<th>{{ attributes[key].label }}</th>{% endfor %}
+        <th>{{ case.target }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="num">{{ row.no }}</td>
+        {% for key in columns %}<td>{{ row[key] }}</td>{% endfor %}
+        <td>{{ label_badge(row.label) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{# Tabel Entropy, Gain, Split Info, dan Gain Ratio untuk satu node. #}
+{% macro calc_table(node) %}
+<div class="table-wrap">
+  <table class="table table-calc">
+    <thead>
+      <tr>
+        <th>Node {{ node.id }}</th><th>Jumlah</th>
+        {% for name in classes %}<th>{{ name }}</th>{% endfor %}
+        <th>Entropy</th><th>Gain</th><th>Split Info</th><th>Gain Ratio</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="row-total">
+        <td>Total</td><td>{{ node.size }}</td>
+        {% for count in node.counts %}<td>{{ count }}</td>{% endfor %}
+        <td>{{ node.entropy|num }}</td><td></td><td></td><td></td>
+      </tr>
+      {% for ev in node.evaluations %}
+      <tr class="row-attr{{ ' is-winner' if ev.attribute == node.split }}">
+        <td colspan="{{ 3 + classes|length }}">{{ attr_chip(ev.attribute) }}</td>
+        <td>{{ ev.gain|num }}</td><td>{{ ev.split_info|num }}</td><td>{{ ev.gain_ratio|num }}</td>
+      </tr>
+      {% for b in ev.branches %}
+      <tr class="row-value">
+        <td>{{ b.value }}</td><td>{{ b.size }}</td>
+        {% for count in b.counts %}<td>{{ count }}</td>{% endfor %}
+        <td>{{ b.entropy|num }}</td><td></td><td>{{ b.split_term|num }}</td><td></td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{# Rumus langkah demi langkah satu node, dilipat agar halaman tidak terlalu panjang. #}
+{% macro formula_steps(node) %}
+<details class="fold">
+  <summary>Lihat rumus langkah demi langkah</summary>
+  <div class="fold-body">
+    <p class="formula-title">Entropy total</p>
+    <p class="formula">{% for name in classes %}(−{{ node.counts[loop.index0] }}/{{ node.size }} · log₂({{ node.counts[loop.index0] }}/{{ node.size }})){{ ' + ' if not loop.last }}{% endfor %} = <b>{{ node.entropy|num }}</b></p>
+    {% for ev in node.evaluations %}
+    {% set steps = explain(node, ev) %}
+    <div class="formula-group">
+      <h5>{{ attr_chip(ev.attribute) }}</h5>
+      <p class="formula-title">a. Entropy tiap nilai</p>
+      {% for value, text in steps.entropy %}<p class="formula"><span class="formula-key">{{ value }}</span> = {{ text }}</p>{% endfor %}
+      <p class="formula-title">b. Gain</p>
+      <p class="formula">{{ steps.gain }}</p>
+      <p class="formula-title">c. Split Info</p>
+      <p class="formula">{{ steps.split_info }}</p>
+      <p class="formula-title">d. Gain Ratio</p>
+      <p class="formula">{{ steps.gain_ratio }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endmacro %}
+
+{# Gambar pohon sebagai SVG. step=None menggambar pohon utuh; path = ID node jalur klasifikasi. #}
+{% macro tree_svg(tree, lay, step=None, path=None) %}
+{%- set seen = tree.visible_ids(step) -%}
+{%- set done = tree.done_ids(step) -%}
+{%- set box = lay.view_box(seen) -%}
+<div class="tree-wrap">
+<div class="tree-frame tree-{{ size_class(box.w) }}">
+<svg class="tree-svg" viewBox="{{ box.x }} {{ box.y }} {{ box.w }} {{ box.h }}" width="{{ box.w }}" height="{{ box.h }}" role="img" aria-label="Pohon keputusan {{ tree.number }}">
+  <g>
+    {% for e in lay.edges if e.child in seen %}
+    <path class="edge{{ ' on-path' if path and e.child in path }}" d="{{ e.d }}"/>
+    {% endfor %}
+  </g>
+  <g>
+    {% for node in tree.nodes() if node.id in seen %}
+    {% set p = lay.positions[node.id] %}
+    {% set pending = not node.is_leaf and node.id not in done %}
+    {% set kind = 'pending' if pending else ('leaf leaf-' ~ node.label|slug if node.is_leaf else 'split') %}
+    {% set radius = lay.node_h // 2 if kind == 'split' else 12 %}
+    <g class="node node-{{ kind }}{{ ' on-path' if path and node.id in path }}" transform="translate({{ p.x }} {{ p.y }})">
+      <rect class="node-shadow" x="{{ -lay.node_w // 2 + 4 }}" y="{{ -lay.node_h // 2 + 4 }}" width="{{ lay.node_w }}" height="{{ lay.node_h }}" rx="{{ radius }}"/>
+      <rect class="node-body" x="{{ -lay.node_w // 2 }}" y="{{ -lay.node_h // 2 }}" width="{{ lay.node_w }}" height="{{ lay.node_h }}" rx="{{ radius }}"/>
+      {% if pending %}
+      <text class="node-title" text-anchor="middle" dy="-3">Node {{ node.id }}</text>
+      <text class="node-sub" text-anchor="middle" dy="14">belum dihitung</text>
+      {% elif node.is_leaf %}
+      <text class="node-title" text-anchor="middle" dy="-3">{{ node.label }}</text>
+      <text class="node-sub" text-anchor="middle" dy="14">Node {{ node.id }} · {{ node.size }} data</text>
+      {% else %}
+      <text class="node-sub" text-anchor="middle" dy="-6">Node {{ node.id }}</text>
+      <text class="node-title" text-anchor="middle" dy="12">{{ attributes[node.split].label }}</text>
+      {% endif %}
+    </g>
+    {% endfor %}
+  </g>
+  {# Label cabang digambar paling akhir agar tidak tertutup garis atau node. #}
+  <g>
+    {% for e in lay.edges if e.child in seen %}
+    <g class="edge-label{{ ' on-path' if path and e.child in path }}" transform="translate({{ e.lx }} {{ e.ly }})">
+      <rect x="{{ -e.lw // 2 }}" y="-11" width="{{ e.lw }}" height="22" rx="11"/>
+      <text text-anchor="middle" dy="4">{{ e.text }}</text>
+    </g>
+    {% endfor %}
+  </g>
+</svg>
+</div>
+</div>
+{% endmacro %}
